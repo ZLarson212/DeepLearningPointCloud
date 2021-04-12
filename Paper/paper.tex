@@ -1,52 +1,32 @@
 %%%%% Point Pillar Lidar Deep Learning Face Finding %%%%%%
 %%%%% Karissa Stisser, Zach Larson, Naseem Alfaqueh, Anjali Patil, Adrian Lindsey, Omar Rizk
-\documentclass{article}
-\usepackage[utf8]{inputenc}
+\documentclass{article} 
+\usepackage[utf8]{inputenc} 
+\title{Point Pillar Lidar Deep Learning Face Finding} 
+\author{Karissa Stisser, Zach Larson, Naseem Alfaqueh\\ \\And Anjali Patil, Adrian Lindsey, Omar Rizk } 
+\date{April 2021- https://github.com/kstisser/DeepLearningPointCloud} \begin{document} 
+\maketitle 
 
-\title{Point Pillar Lidar Deep Learning Face Finding}
-\author{Karissa Stisser, Zach Larson, Naseem Alfaqueh\\
-\\And
-Anjali Patil, Adrian Lindsey, Omar Rizk }
-\date{April 2021- https://github.com/kstisser/DeepLearningPointCloud}
+\section{Introduction} We have created a system that uses deep learning to recognize a face in point cloud data using time series data in real time for surgical applications. As this use case is very specific, we focused on leveraging knowledge of the space and procedure to optimize the output rather than try to create a solution for all scenarios. We build a preprocessing pipeline that eliminated unnecessary points, leveraged the point pillars deep learning architecture\cite{pointpillars}, and modified the output for a pixel by pixel decision on whether that pixel belonged to the face. 
 
-\begin{document}
+\section{Data Augmentation} As we started with 7 point clouds, we developed a data augmentation plan to be used between the train and test data that involves background mixing, translation, rotation, scaling, and flipping as we would like the trained algorithm to be more robust to camera placement in relation to the face. We only modified in the x and y directions, as modifications in the z directions would actually add and remove points, which we weren't confident in accurately augmenting. We start by matching each face with each other background points. If we have n point clouds, this creates an additional n choose 2 combination of point clouds. For each of these background mixed point clouds we added translation in a spiral format starting from the face center and moving outwards in 30 different locations. We continually increment the angle by 4 * pi/30 to ensure two spiral loops, and use the following equation for center face placement: \[rt = e^{0.306*angle}\] \[x = rt * cos(angle) + originalX\] \[y = rt * sin(angle) + originalY\] At each different translation we are rotating the face 10 times in addition to the original, which we consider 0 degrees, and we evenly space the other 10 between 0 and 360. We are scaling at ${2\%}$, ${4\%}$, and ${6\%}$, both bigger and smaller to make an additional 6 point clouds, keeping the face a reasonable size within the anticipated space. Because we are using random downsampling the space between the points at these scales are not a concern as it is possible we would randomly increase or decrease the scaling of the proximity of points. Finally, we flopped the face in each of the scaled point clouds, doubling the final count, which is: \[ 3600 * \frac{n!}{2!(n-2)!} + n \] where n = the number of original point clouds. As we started with 7 point clouds, we are able to produce a total of 151,207 point clouds. As all 7 point clouds were of the same face, the next step would be to collect data of different faces with a variation on age, size, races, and distinctive features. 
 
-\maketitle
+\section{Data Preprocessing} Because we are not able to use all points in the point cloud given due to computational speed, we chose to add preprocessing steps to eliminate unnecessary points. As this problem is meant for a specific application with specific hardware, we were able to make certain assumptions. Because we were told there will be a table or floor under the patient being operated on, we chose to begin our algorithm with a RANSAC plane finder to eliminate all points within a reasonable plane. We then randomly downsampled to 1000 points. Next, we developed a clustering architecture which consists of a Clusterer and Cluster Profiler. The clusterer starts by running DBSCAN with eps = 0.05 and the minimum number of samples are 10. The Cluster Profiler maintains profiles of faces using number of points in the cluster, width of the cluster, and height of the cluster. We store an ideal face (an average of our downsampled data) with 200 points, 0.1907 meters width, and 0.2487 meters height to compute a score to compare each incoming cluster against. Our score calculation is: We also maintain a profile for a minimum face with 100 points, 0.1 meters width, and 0.2 meters height, and a maximum face with 300 points, 0.4 meters width, and 0.6 meters height. If the incoming cluster has any value lower than the minimum face or larger than the maximum face it is given a score of -1 and is eliminated. If the cluster is not eliminated by this, its score is computed when compared to the average face, and if the score is above the threshold 0.7, it is kept for further parallel evaluation in the Machine Learning pipeline. 
 
-\section{Introduction}
-We have created a system that uses deep learning to recognize a face in point cloud data using time series data in real time for surgical applications. As this use case is very specific, we focused on leveraging knowledge of the space and procedure to optimize the output rather than try to create a solution for all scenarios. We build a preprocessing pipeline that eliminated unnecessary points, leveraged the point pillars deep learning architecture\cite{pointpillars}, and modified the output for a pixel by pixel decision on whether that pixel belonged to the face. 
-\section{Data Augmentation}
-As we started with 7 point clouds, we developed a data augmentation plan to be used between the train and test data that involves background mixing, translation, rotation, scaling, and flipping as we would like the trained algorithm to be more robust to camera placement in relation to the face. We only modified in the x and y directions, as modifications in the z directions would actually add and remove points, which we weren't confident in accurately augmenting. 
+\section{Architecture} 
 
-We start by matching each face with each other background points. If we have n point clouds, this creates an additional n choose 2 combination of point clouds. 
-For each of these background mixed point clouds we added translation in a spiral format starting from the face center and moving outwards in 30 different locations. We continually increment the angle by 4 * pi/30 to ensure two spiral loops, and use the following equation for center face placement:
-\[rt = e^{0.306*angle}\]
-\[x = rt * cos(angle) + originalX\]
-\[y = rt * sin(angle) + originalY\]
-At each different translation we are rotating the face 10 times in addition to the original, which we consider 0 degrees, and we evenly space the other 10 between 0 and 360. We are scaling at ${2\%}$, ${4\%}$, and ${6\%}$, both bigger and smaller to make an additional 6 point clouds, keeping the face a reasonable size within the anticipated space. Because we are using random downsampling the space between the points at these scales are not a concern as it is possible we would randomly increase or decrease the scaling of the proximity of points. 
-Finally, we flopped the face in each of the scaled point clouds, doubling the final count, which is:
-\[
-    3600 * \frac{n!}{2!(n-2)!} + n
-\]
-where n = the number of original point clouds. As we started with 7 point clouds, we are able to produce a total of 151,207 point clouds. As all 7 point clouds were of the same face, the next step would be to collect data of different faces with a variation on age, size, races, and distinctive features. 
-\section{Data Preprocessing}
-Because we are not able to use all points in the point cloud given due to computational speed, we chose to add preprocessing steps to eliminate unnecessary points. As this problem is meant for a specific application with specific hardware, we were able to make certain assumptions. Because we were told there will be a table or floor under the patient being operated on, we chose to begin our algorithm with a RANSAC plane finder to eliminate all points within a reasonable plane. We then randomly downsampled to 1000 points. 
+Once the point cloud is downsampled and clustered, we then transform this processed data into point pillars. These pillars are formed by projecting all points in the point cloud onto the x-y plane and binning them with a simple grid. The arithmetic mean of the x, y, z values of the points in each bin are taken, as well as the x and y offset of each point from the center of the pillar (the mean values). These statistics are then combined with the three dimensional coordinates of each point to give an eight dimensional vector for each point. 
 
-Next, we developed a clustering architecture which consists of a Clusterer and Cluster Profiler. The clusterer starts by running DBSCAN with eps = 0.05 and the minimum number of samples are 10. The Cluster Profiler maintains profiles of faces using number of points in the cluster, width of the cluster, and height of the cluster. We store an ideal face (an average of our downsampled data) with 200 points, 0.1907 meters width, and 0.2487 meters height to compute a score to compare each incoming cluster against. Our score calculation is:
+Once the eight dimensional vectors are formed for each point via the point pillar method, they are passed to the model. The backbone of the model consists of several 2D convolutional layers, thus the purpose of the pillar structure: to maintain relevant information from the 3D point cloud and translate that to a 2D format in a meaningful way. Convolutional layers are particularly good at discerning important differences in 2D data, such as images, which is why we use a series of these layers in the neural network. The data are convolved down to a particular size in three instances, two instances of one size and another instance of double the chosen size. This is in accordance with the prevailing point pillar neural network that we are adapting [2]. After each of these convolutions is a batch normalization layer. These three individual convolutions are then transposed (deconvolved) to the same size, batch normalized, and concatenated to one single set. This set is run through a final dense layer with a sigmoid activation, leaving a binary value for each point in the set. By training the network, we hope to achieve above 95\% accuracy for our binary output in predicting whether a point is in the face (1) or not (0).
 
-We also maintain a profile for a minimum face with 100 points, 0.1 meters width, and 0.2 meters height, and a maximum face with 300 points, 0.4 meters width, and 0.6 meters height. If the incoming cluster has any value lower than the minimum face or larger than the maximum face it is given a score of -1 and is eliminated. If the cluster is not eliminated by this, its score is computed when compared to the average face, and if the score is above the threshold 0.7, it is kept for further parallel evaluation in the Machine Learning pipeline.  
+\section{Training} 
 
-\section{Architecture}
+We implement the traditional 80/20 train-test split in dividing the pre-processed data. The data is treated by the point pillar method and the training data is passed to the model. Since the output of the model is a binary list, the validation data must match this form. To use the validation feature, we must offer something to compare the output of the model against, so we created an empirical set of binary values for each point in each point cloud and use this as the validation data to see how well the model is predicting the location of the points. This is important in seeing how quickly (and how well) the model is training before applying it to new data, the true test of a predictive model. 
 
-\section{Training}
+\section{Conclusion} 
 
-\section{Conclusion}
-
-\begin{thebibliography}{9}
-\bibitem{pointpillars} 
-PointPillars: Fast Encoders for Object Detection from Point Clouds, Dec 14, 2018
-\\\texttt{arXiv:1812.05784}
-\bibitem{githubrepo}
-Point Pillars in TensorFlow (2020), GitHub, https://github.com/tyagi-iiitv/PointPillars
-\end{thebibliography}
+\begin{thebibliography}{9} 
+\bibitem{pointpillars} PointPillars: Fast Encoders for Object Detection from Point Clouds, Dec 14, 2018 \\\texttt{arXiv:1812.05784} 
+\bibitem{githubrepo} Point Pillars in TensorFlow (2020), GitHub, https://github.com/tyagi-iiitv/PointPillars 
+\end{thebibliography} 
 \end{document}
